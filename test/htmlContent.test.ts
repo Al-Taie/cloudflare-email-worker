@@ -19,6 +19,20 @@ test("htmlToRichMarkdown converts bold/italic/links", () => {
     assert.match(result, /\[details\]\(https:\/\/example\.com\)/);
 });
 
+test("decodes &amp; inside an href instead of leaving it literal in the URL", () => {
+    // Regression test: HTML requires "&" inside an attribute value to be
+    // written as "&amp;" (href="...?a=1&amp;b=2"). The raw captured href
+    // wasn't being entity-decoded, so a multi-param link rendered with a
+    // literal "&amp;" text in the URL instead of a real "&" — breaking it
+    // (observed in production with a Postdrop verify-recipient link whose
+    // query string had "token=...&amp;id=...").
+    const html =
+        '<a href="https://example.com/verify?token=abc123&amp;id=xyz789">Verify</a>';
+    const result = htmlToRichMarkdown(html);
+    assert.equal(result, "[Verify](https://example.com/verify?token=abc123&id=xyz789)");
+    assert.doesNotMatch(result, /&amp;/);
+});
+
 test("handles a closing tag whose '>' is split onto its own line", () => {
     // Regression test: Prettier-formatted email templates routinely emit
     // `text</a\n>` (whitespace between "</a" and ">", valid HTML). The link
