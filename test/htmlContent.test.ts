@@ -19,6 +19,36 @@ test("htmlToRichMarkdown converts bold/italic/links", () => {
     assert.match(result, /\[details\]\(https:\/\/example\.com\)/);
 });
 
+test("handles a closing tag whose '>' is split onto its own line", () => {
+    // Regression test: Prettier-formatted email templates routinely emit
+    // `text</a\n>` (whitespace between "</a" and ">", valid HTML). The link
+    // regex used to require a literal contiguous "</a>", so it skipped past
+    // this closing tag entirely and merged with the *next* unrelated link
+    // found later in the document, producing one garbled multi-line token
+    // that broke Telegram's markdown parsing (observed in production with a
+    // real "Verify Recipient" button template from Postdrop).
+    const html = `
+        <a href="https://postdrop.io"><img src="https://cdn.example.com/logo.png" alt="Postdrop" /></a>
+        <p>Please verify.</p>
+        <a
+          href="https://app.postdrop.io/verify/recipients/abc123?token=xyz"
+          target="_blank"
+          >Verify Recipient</a
+        >
+        <p>Powered by
+        <a href="https://postdrop.io">Postdrop</a>.</p>
+    `;
+    const result = htmlToRichMarkdown(html);
+    assert.equal(
+        result,
+        "[Postdrop](https://postdrop.io)\n" +
+            "Please verify.\n\n" +
+            "[Verify Recipient](https://app.postdrop.io/verify/recipients/abc123?token=xyz)\n" +
+            "Powered by\n" +
+            "[Postdrop](https://postdrop.io)."
+    );
+});
+
 test("htmlToRichMarkdown escapes special characters in plain text but not generated markdown", () => {
     // "%" isn't in Telegram's Rich Markdown special-character set — only
     // \ ` * _ ~ = | [ ] # $ ^ > need escaping.
@@ -54,6 +84,20 @@ test("decodes common named entities beyond the XML five", () => {
 
 test("decodes numeric entities, decimal and hex", () => {
     assert.equal(htmlToText("&#169; &#x2013;"), "© –");
+});
+
+test("decodes the CTA arrow entity", () => {
+    // Regression test: "Read more &rarr;" (a common CTA pattern) was
+    // rendering literally with the entity un-decoded.
+    assert.equal(htmlToText("Read more &rarr;"), "Read more →");
+});
+
+test("decodes entities case-sensitively where it matters, with a lowercase fallback", () => {
+    // &rArr; (double arrow ⇒) and &rarr; (single arrow →) are different
+    // characters per the HTML5 spec; casing must be respected when both
+    // forms exist, while still tolerating loosely-cased common entities.
+    assert.equal(htmlToText("&rarr; &rArr;"), "→ ⇒");
+    assert.equal(htmlToText("&COPY;"), "©");
 });
 
 test("extracts image alt text instead of silently dropping the image", () => {
