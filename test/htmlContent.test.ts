@@ -16,35 +16,36 @@ test("htmlToRichMarkdown converts bold/italic/links", () => {
     const html = '<p>Use the following security code: <b>519384</b></p><p>See <a href="https://example.com">details</a>.</p>';
     const result = htmlToRichMarkdown(html);
     assert.match(result, /\*\*519384\*\*/);
-    assert.match(result, /\[details\]\(https:\/\/example\.com\)/);
+    assert.match(result, /<a href="https:\/\/example\.com">details<\/a>/);
 });
 
-test("decodes &amp; inside an href instead of leaving it literal in the URL", () => {
+test("decodes &amp; inside an href and re-escapes it correctly for the HTML anchor", () => {
     // Regression test: HTML requires "&" inside an attribute value to be
     // written as "&amp;" (href="...?a=1&amp;b=2"). The raw captured href
-    // wasn't being entity-decoded, so a multi-param link rendered with a
-    // literal "&amp;" text in the URL instead of a real "&" — breaking it
-    // (observed in production with a Postdrop verify-recipient link whose
-    // query string had "token=...&amp;id=...").
+    // wasn't being entity-decoded at all, so a multi-param link rendered
+    // with a literal, un-decoded "&amp;" as visible URL text (observed in
+    // production with a Postdrop verify-recipient link). Links are now
+    // built as <a href="..."> (see the link-syntax change below), so a
+    // single "&" is expected to round-trip back to "&amp;" in the
+    // attribute — that's correct HTML, not the bug.
     const html =
         '<a href="https://example.com/verify?token=abc123&amp;id=xyz789">Verify</a>';
     const result = htmlToRichMarkdown(html);
-    assert.equal(result, "[Verify](https://example.com/verify?token=abc123&id=xyz789)");
-    assert.doesNotMatch(result, /&amp;/);
+    assert.equal(result, '<a href="https://example.com/verify?token=abc123&amp;id=xyz789">Verify</a>');
 });
 
-test("decodes a double-encoded &amp;amp; inside an href", () => {
+test("decodes a double-encoded &amp;amp; inside an href down to a single &amp;", () => {
     // Regression test: still saw a literal "&amp;" in production after the
     // single-pass decode fix above — the real sent email (as opposed to the
     // template preview used to build the first regression test) apparently
     // double-encodes the URL, producing "&amp;amp;" in the raw href. A
-    // single decodeEntities pass only unwinds one level of encoding,
-    // leaving "&amp;" behind; decoding must repeat until stable.
+    // single decodeEntities pass only unwinds one level of encoding; it must
+    // repeat until stable so the href ends up as a single real "&", which
+    // then re-escapes to exactly one "&amp;" in the HTML attribute.
     const html =
         '<a href="https://example.com/verify?token=abc123&amp;amp;id=xyz789">Verify</a>';
     const result = htmlToRichMarkdown(html);
-    assert.equal(result, "[Verify](https://example.com/verify?token=abc123&id=xyz789)");
-    assert.doesNotMatch(result, /&amp;/);
+    assert.equal(result, '<a href="https://example.com/verify?token=abc123&amp;id=xyz789">Verify</a>');
 });
 
 test("handles a closing tag whose '>' is split onto its own line", () => {
@@ -69,11 +70,11 @@ test("handles a closing tag whose '>' is split onto its own line", () => {
     const result = htmlToRichMarkdown(html);
     assert.equal(
         result,
-        "[Postdrop](https://postdrop.io)\n" +
+        '<a href="https://postdrop.io">Postdrop</a>\n' +
             "Please verify.\n\n" +
-            "[Verify Recipient](https://app.postdrop.io/verify/recipients/abc123?token=xyz)\n" +
+            '<a href="https://app.postdrop.io/verify/recipients/abc123?token=xyz">Verify Recipient</a>\n' +
             "Powered by\n" +
-            "[Postdrop](https://postdrop.io)."
+            '<a href="https://postdrop.io">Postdrop</a>.'
     );
 });
 
@@ -90,6 +91,18 @@ test("htmlToRichMarkdown drops unsafe link schemes but keeps the text", () => {
     const result = htmlToRichMarkdown(html);
     assert.equal(result, "click me");
     assert.doesNotMatch(result, /javascript:/);
+});
+
+test("links built as HTML anchors preserve parentheses in the URL instead of stripping them", () => {
+    // Regression test: links used to be built as Markdown [text](url) syntax
+    // and stripped '(' / ')' out of the href entirely to avoid breaking the
+    // markdown syntax — silently corrupting any URL that legitimately
+    // contains parentheses (e.g. a Wikipedia disambiguation page). Building
+    // links as HTML <a href="..."> anchors instead sidesteps this: parens
+    // have no special meaning inside an HTML attribute value.
+    const html = '<a href="https://en.wikipedia.org/wiki/Foo_(disambiguation)">Foo</a>';
+    const result = htmlToRichMarkdown(html);
+    assert.equal(result, '<a href="https://en.wikipedia.org/wiki/Foo_(disambiguation)">Foo</a>');
 });
 
 test("htmlToRichMarkdown handles nested formatting inside a link-free bold tag", () => {
@@ -142,7 +155,7 @@ test("does not corrupt output when image alt text contains a small integer", () 
     const result = htmlToRichMarkdown(html);
     assert.match(result, /Product 1[\s\S]*Beach Umbrella/);
     assert.match(result, /Product 2[\s\S]*Sunscreen/);
-    assert.match(result, /\[Unsubscribe\]\(https:\/\/example\.com\)/);
+    assert.match(result, /<a href="https:\/\/example\.com">Unsubscribe<\/a>/);
     assert.doesNotMatch(result, /ProductUnsubscribe/);
 });
 
@@ -222,7 +235,7 @@ test("preserves inline formatting inside a table cell instead of stripping it", 
         '<tr><td><b>Bold</b> cell</td><td><a href="https://example.com">Link</a> cell</td></tr></table>';
     const result = htmlToRichMarkdown(html);
     assert.match(result, /\*\*Bold\*\* cell/);
-    assert.match(result, /\[Link\]\(https:\/\/example\.com\) cell/);
+    assert.match(result, /<a href="https:\/\/example\.com">Link<\/a> cell/);
 });
 
 test("promotes a substantial standalone raster image to a real media block", () => {
@@ -260,7 +273,7 @@ test("does not emit a media block for an extension-less/query-string-only image 
 test("keeps an image inside a link as the link label", () => {
     const html = '<a href="https://shop.example.com"><img src="https://example.com/banner.png" width="600" height="300" alt="Shop Now"></a>';
     const result = htmlToRichMarkdown(html);
-    assert.equal(result, "[Shop Now](https://shop.example.com)");
+    assert.equal(result, '<a href="https://shop.example.com">Shop Now</a>');
     assert.doesNotMatch(result, /!\[\]/);
 });
 
