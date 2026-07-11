@@ -46,3 +46,45 @@ test("htmlToRichMarkdown does not corrupt plain numbers that look like tokens", 
     assert.match(result, /I have 5 apples/);
     assert.match(result, /\*\*bold text\*\*/);
 });
+
+test("decodes common named entities beyond the XML five", () => {
+    const html = "<p>&copy; NinuSoft &ndash; All rights reserved &mdash; est. 1999&hellip;</p>";
+    assert.equal(htmlToText(html), "© NinuSoft – All rights reserved — est. 1999…");
+});
+
+test("decodes numeric entities, decimal and hex", () => {
+    assert.equal(htmlToText("&#169; &#x2013;"), "© –");
+});
+
+test("extracts image alt text instead of silently dropping the image", () => {
+    const html = '<img src="banner.jpg" alt="Up to 40% Off Summer Sale">';
+    assert.equal(htmlToText(html), "Up to 40% Off Summer Sale");
+});
+
+test("does not corrupt output when image alt text contains a small integer", () => {
+    // Regression test: an <img alt="Product 1"> was colliding with the
+    // internal placeholder-token scheme and mangling unrelated later text.
+    const html =
+        '<table><tr><td><img alt="Product 1"><p>Beach Umbrella</p></td>' +
+        '<td><img alt="Product 2"><p>Sunscreen</p></td></tr></table><a href="https://example.com">Unsubscribe</a>';
+    const result = htmlToRichMarkdown(html);
+    assert.match(result, /Product 1[\s\S]*Beach Umbrella/);
+    assert.match(result, /Product 2[\s\S]*Sunscreen/);
+    assert.match(result, /\[Unsubscribe\]\(https:\/\/example\.com\)/);
+    assert.doesNotMatch(result, /ProductUnsubscribe/);
+});
+
+test("collapses indentation whitespace from table-heavy email markup instead of a wall of blank lines", () => {
+    const html = `
+        <table>
+          <tr>
+            <td>
+              <p>Beach Umbrella</p>
+            </td>
+          </tr>
+        </table>
+    `;
+    const result = htmlToText(html);
+    assert.equal(result, "Beach Umbrella");
+    assert.doesNotMatch(result, /\n{3,}/);
+});
