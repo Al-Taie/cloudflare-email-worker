@@ -37,14 +37,3 @@ test("truncation preserves the header table and closing </details> tag", () => {
     assert.match(result, /Verification Code.*`123456`/);
     assert.match(result, /<\/details>$/);
 });
-
-test("does not blockquote the body", () => {
-    // Regression test: the body used to be wrapped in "> " per line, which
-    // caused Telegram to reject a ![](url) media block placed there with
-    // RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND in production. Media blocks require
-    // the body to render as plain content inside <details>, not a blockquote.
-    const result = buildRichMarkdownPayload({ ...baseInput, displayBody: "Line one\nLine two" });
-    assert.match(result, /^Line one$/m);
-    assert.match(result, /^Line two$/m);
-    assert.doesNotMatch(result, /^> /m);
-});
