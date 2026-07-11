@@ -196,26 +196,24 @@ export default {
         if (!bodyText) bodyText = "No text content found.";
         bodyText = bodyText.replace(/\n{3,}/g, "\n\n");
 
-        console.log(
-            `[Received] From: ${parsed.from?.address || "(unknown)"} | To: ${(parsed.to || []).map((a) => a.address).join(", ") || "(unknown)"} | Subject: "${subject}" | Date: ${parsed.date || "(unknown)"}\n${bodyText}`
-        );
-
         const verificationCode = extractVerificationCode(subject, bodyText);
 
         if (!verificationCode) {
-            console.log(`[Dropped] Email skipped. No verification token extracted. Subject: "${subject}"`);
-            return;
+            console.log(`[No code] Forwarding without a verification code. Subject: "${subject}"`);
         }
 
         const lowerSubject = subject.toLowerCase();
-        let statusEmoji = "🔐";
+        let statusEmoji = "📧";
+        if (verificationCode) {
+            statusEmoji = "🔐";
+        }
         if (/alert|warning|critical/.test(lowerSubject)) {
             statusEmoji = "⚠️";
         } else if (/invoice|receipt|payment/.test(lowerSubject)) {
             statusEmoji = "🧾";
         }
 
-        const otpHeaderBlock = `\n🔑 **Verification Code:** \`${verificationCode}\` \n`;
+        const otpHeaderBlock = verificationCode ? `\n🔑 **Verification Code:** \`${verificationCode}\` \n` : "\n";
 
         const escapedBody = escapeRichMarkdown(bodyText);
         const processedBody = highlightCode(escapedBody, verificationCode);
