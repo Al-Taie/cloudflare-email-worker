@@ -46,11 +46,12 @@ export function buildRichMarkdownPayload({
     const statusEmoji = pickStatusEmoji(subject, Boolean(verificationCode));
     const otpHeaderBlock = verificationCode ? `\n🔑 **Verification Code:** \`${verificationCode}\` \n` : "\n";
 
-    const processedBody = highlightCode(displayBody, verificationCode);
-    const fullEmailContentBlock = processedBody
-        .split("\n")
-        .map((line) => `> ${line}`)
-        .join("\n");
+    // Not blockquoted (no "> " prefix): Telegram rejected a ![](url) media
+    // block placed inside a blockquote with RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND
+    // in production. <details> is confirmed by Telegram's docs to still
+    // parse markdown content, so the body renders as plain content there
+    // instead — that's what lets media blocks (see htmlContent.ts) work.
+    const fullEmailContentBlock = highlightCode(displayBody, verificationCode);
 
     const assemble = (emailContentBlock: string): string =>
         `
