@@ -153,43 +153,30 @@ test("preserves inline formatting inside a table cell instead of stripping it", 
     assert.match(result, /\[Link\]\(https:\/\/example\.com\) cell/);
 });
 
-test("promotes a substantial standalone image to a real media block", () => {
+// Media blocks (![](url)) are intentionally not generated: the email body
+// is rendered inside a "> "-quoted blockquote (see payload.ts), and
+// Telegram rejected that placement in production with
+// "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND". Every image — standalone, linked, or
+// in a table cell — should fall back to plain alt text.
+test("never emits a media block for a standalone image, even a large one", () => {
     const html = '<p>Check this out:</p><img src="https://example.com/banner.jpg" width="600" height="300" alt="Summer Sale">';
     const result = htmlToRichMarkdown(html);
-    assert.match(result, /!\[\]\(https:\/\/example\.com\/banner\.jpg "Summer Sale"\)/);
-});
-
-test("keeps a small icon image as alt text instead of a media block", () => {
-    const html = '<img src="https://example.com/icon.png" width="24" height="24" alt="Discount Icon">';
-    const result = htmlToRichMarkdown(html);
-    assert.equal(result, "Discount Icon");
     assert.doesNotMatch(result, /!\[\]/);
+    assert.match(result, /Summer Sale/);
 });
 
-test("keeps an image inside a link as the link label, not a separate media block", () => {
+test("keeps an image inside a link as the link label", () => {
     const html = '<a href="https://shop.example.com"><img src="https://example.com/banner.jpg" width="600" height="300" alt="Shop Now"></a>';
     const result = htmlToRichMarkdown(html);
     assert.equal(result, "[Shop Now](https://shop.example.com)");
     assert.doesNotMatch(result, /!\[\]/);
 });
 
-test("keeps an image inside a data table cell as alt text, never a media block", () => {
+test("keeps an image inside a data table cell as alt text", () => {
     const html =
         '<table><tr><th>Item</th><th>Photo</th></tr>' +
         '<tr><td>Umbrella</td><td><img src="https://example.com/u.jpg" width="200" height="200" alt="Umbrella Photo"></td></tr></table>';
     const result = htmlToRichMarkdown(html);
     assert.match(result, /\| Umbrella \| Umbrella Photo \|/);
     assert.doesNotMatch(result, /!\[\]/);
-});
-
-test("caps standalone media blocks and falls back to alt text past the limit", () => {
-    const manyImages = Array.from(
-        { length: 7 },
-        (_, i) => `<img src="https://example.com/img${i}.jpg" width="200" height="200" alt="Image ${i}">`
-    ).join("");
-    const result = htmlToRichMarkdown(manyImages);
-    const mediaBlockCount = (result.match(/!\[\]/g) ?? []).length;
-    assert.equal(mediaBlockCount, 5);
-    assert.match(result, /Image 5/);
-    assert.match(result, /Image 6/);
 });
