@@ -67,6 +67,11 @@ export default {
             displayBody
         });
 
+        // Temporary diagnostic: log the exact payload we're about to send,
+        // to compare what this code actually produces against what
+        // Telegram ends up rendering/navigating to.
+        console.log(`[Outgoing payload]\n${richMarkdownPayload}`);
+
         await sendRichMessageWithRetry(env.TELEGRAM_BOT_TOKEN, {
             chat_id: env.TELEGRAM_CHAT_ID,
             message_thread_id: parseInt(env.TELEGRAM_TOPIC_ID, 10),

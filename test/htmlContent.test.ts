@@ -33,6 +33,20 @@ test("decodes &amp; inside an href instead of leaving it literal in the URL", ()
     assert.doesNotMatch(result, /&amp;/);
 });
 
+test("decodes a double-encoded &amp;amp; inside an href", () => {
+    // Regression test: still saw a literal "&amp;" in production after the
+    // single-pass decode fix above — the real sent email (as opposed to the
+    // template preview used to build the first regression test) apparently
+    // double-encodes the URL, producing "&amp;amp;" in the raw href. A
+    // single decodeEntities pass only unwinds one level of encoding,
+    // leaving "&amp;" behind; decoding must repeat until stable.
+    const html =
+        '<a href="https://example.com/verify?token=abc123&amp;amp;id=xyz789">Verify</a>';
+    const result = htmlToRichMarkdown(html);
+    assert.equal(result, "[Verify](https://example.com/verify?token=abc123&id=xyz789)");
+    assert.doesNotMatch(result, /&amp;/);
+});
+
 test("handles a closing tag whose '>' is split onto its own line", () => {
     // Regression test: Prettier-formatted email templates routinely emit
     // `text</a\n>` (whitespace between "</a" and ">", valid HTML). The link
