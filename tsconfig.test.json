@@ -16,5 +16,5 @@
         "allowImportingTsExtensions": true,
         "resolveJsonModule": true
     },
-    "include": ["test/**/*.ts", "src/richMarkdown.ts", "src/codeExtraction.ts", "src/htmlContent.ts", "src/format.ts"]
+    "include": ["test/**/*.ts", "src/richMarkdown.ts", "src/codeExtraction.ts", "src/htmlContent.ts", "src/format.ts", "src/payload.ts"]
 }

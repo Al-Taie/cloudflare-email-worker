@@ -88,3 +88,58 @@ test("collapses indentation whitespace from table-heavy email markup instead of 
     assert.equal(result, "Beach Umbrella");
     assert.doesNotMatch(result, /\n{3,}/);
 });
+
+test("strips display:none preheader/tracking text", () => {
+    const html =
+        '<span style="display:none">Hidden preheader text</span><p>Visible content</p>';
+    const result = htmlToText(html);
+    assert.equal(result, "Visible content");
+    assert.doesNotMatch(result, /Hidden preheader/);
+});
+
+test("strips visibility:hidden and Outlook mso-hide:all content", () => {
+    assert.equal(htmlToText('<div style="visibility:hidden">gone</div><p>kept</p>'), "kept");
+    assert.equal(htmlToText('<div style="mso-hide:all">gone</div><p>kept</p>'), "kept");
+});
+
+test("keeps content in an element with an unrelated style", () => {
+    const html = '<p style="color:red">Still visible</p>';
+    assert.equal(htmlToText(html), "Still visible");
+});
+
+test("renders a genuine data table (>=2 rows, >=2 columns) as a Rich Markdown table", () => {
+    const html = `
+        <table>
+          <tr><th>Item</th><th>Price</th></tr>
+          <tr><td>Umbrella</td><td>$20</td></tr>
+          <tr><td>Cooler</td><td>$35</td></tr>
+        </table>
+    `;
+    const result = htmlToRichMarkdown(html);
+    assert.match(result, /\| Item \| Price \|/);
+    assert.match(result, /\| :--- \| :--- \|/);
+    // "$" is in Telegram's Rich Markdown special-character set, so cell
+    // content containing it is correctly escaped to "\$20".
+    assert.match(result, /\| Umbrella \| \\\$20 \|/);
+    assert.match(result, /\| Cooler \| \\\$35 \|/);
+});
+
+test("does not render a single-row layout table as a markdown table", () => {
+    const html = "<table><tr><td>Logo</td><td>Banner</td></tr></table>";
+    const result = htmlToRichMarkdown(html);
+    assert.doesNotMatch(result, /\| :--- \|/);
+    assert.match(result, /Logo/);
+    assert.match(result, /Banner/);
+});
+
+test("falls back to flattening when a table is nested inside another table", () => {
+    const html = `
+        <table><tr><td>
+          <table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>
+        </td></tr></table>
+    `;
+    const result = htmlToRichMarkdown(html);
+    // Nested tables aren't safely parseable with regex, so this should not
+    // produce a markdown table — just fall through without corrupting output.
+    assert.doesNotMatch(result, /\| :--- \|/);
+});
