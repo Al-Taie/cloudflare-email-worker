@@ -128,6 +128,38 @@ function findStandaloneDigitCode(text) {
     return null;
 }
 
+// Whether the subject line itself signals "this email carries a code", used to
+// license the bare-token fallback below (some templates render the code as the
+// only content in the body, with no "code:" keyword next to it).
+const SUBJECT_CODE_CONTEXT =
+    /\b(?:code|otp|pin|password|passcode|verification|verify|confirm|confirmation|login|log-in|sign-in|authentication|2fa|one-time|one time)\b/i;
+
+// A standard capitalized word ("Hello", "Notion") is just prose, not a code.
+const STANDARD_CAPITALIZED_WORD = /^[A-Z][a-z]+$/;
+
+function isPlausibleBareCode(token) {
+    if (!/^[A-Za-z0-9]{4,10}$/.test(token)) return false;
+    if (CODE_STOP_WORDS.has(token.toLowerCase())) return false;
+    if (STANDARD_CAPITALIZED_WORD.test(token)) return false;
+    // Require a digit or an uppercase letter — plain lowercase words are prose,
+    // but generated codes (482910, 8F3K9A, iRikgJ) always have one of these.
+    return /\d/.test(token) || /[A-Z]/.test(token);
+}
+
+// Last resort for templates where the code sits alone in the body with no
+// adjacent keyword (e.g. Notion's "iRikgJ" with the keyword only in the subject).
+function findBareCodeInBody(subject, bodyText) {
+    if (!SUBJECT_CODE_CONTEXT.test(subject)) return null;
+
+    for (const match of bodyText.matchAll(/\b([A-Za-z0-9]{4,10})\b/g)) {
+        const token = match[1];
+        if (!isPlausibleBareCode(token)) continue;
+        if (/^\d+$/.test(token) && (isLikelyYear(token) || isAdjacentToDateOrTime(token, bodyText, match.index))) continue;
+        return token;
+    }
+    return null;
+}
+
 function extractVerificationCode(subject, bodyText) {
     const bodyLines = bodyText.split("\n");
     for (let i = 0; i < bodyLines.length; i++) {
@@ -137,6 +169,9 @@ function extractVerificationCode(subject, bodyText) {
 
     const subjectCode = findCodeInLine(subject);
     if (subjectCode) return subjectCode;
+
+    const bareCode = findBareCodeInBody(subject, bodyText);
+    if (bareCode) return bareCode;
 
     return findStandaloneDigitCode(bodyText);
 }
@@ -160,6 +195,10 @@ export default {
         let bodyText = parsed.text?.trim() || (parsed.html ? htmlToText(parsed.html) : "");
         if (!bodyText) bodyText = "No text content found.";
         bodyText = bodyText.replace(/\n{3,}/g, "\n\n");
+
+        console.log(
+            `[Received] From: ${parsed.from?.address || "(unknown)"} | To: ${(parsed.to || []).map((a) => a.address).join(", ") || "(unknown)"} | Subject: "${subject}" | Date: ${parsed.date || "(unknown)"}\n${bodyText}`
+        );
 
         const verificationCode = extractVerificationCode(subject, bodyText);
 
