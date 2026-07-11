@@ -1,0 +1,16 @@
+{
+  "name": "forward-workspace-email-to-telegram",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.110.0"
+  },
+  "dependencies": {
+    "postal-mime": "^2.7.5"
+  }
+}
