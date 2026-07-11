@@ -122,17 +122,23 @@ const SAFE_HREF_PATTERN = /^(https?:|mailto:|tel:)/i;
 // inside a double-quoted attribute.
 const escapeHtmlAttribute = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
-// Rich Markdown's own [text](url) syntax requires escaping ')' and '\'
-// inside the parens (https://core.telegram.org/bots/api#rich-markdown-style)
-// — but a real production send showed Telegram's link parser mangling a
-// multi-param URL's "&" into a literal "&amp;" in the actual navigation
-// target, despite our payload containing a correct, unescaped "&" (verified
-// directly from production logs). Rich Markdown also allows mixing in HTML
-// tags for anything Markdown doesn't handle well, so links are built as
-// <a href="..."> instead of [text](url) to route around whatever the bug is
-// in the Markdown-specific link parser. This also sidesteps needing to
-// escape parens in the URL at all, since parens have no special meaning
-// inside an HTML attribute value.
+// KNOWN TELEGRAM BUG (as of Bot API 10.1, June 2026), not fixable on our
+// side: any multi-param URL (one with "&" in the query string) that Telegram
+// renders in a Rich Message link comes out with a mangled "&amp;" in the
+// actual navigation target — confirmed from production logs that OUR
+// outgoing payload contains a correct, properly-formed URL each time
+// (verified for both Markdown [text](url) syntax with a raw "&", and HTML
+// <a href="..."> syntax with the spec-correct "&amp;" escaping below — both
+// independently show the exact same corruption on Telegram's end). Since
+// switching syntax didn't help, this points to a bug in Telegram's Rich
+// Message renderer itself, most likely in the "Open this link?" confirmation
+// dialog / click-through path, not in how we build the link. HTML anchors
+// are still used here (rather than reverting to Markdown syntax) because
+// they're the more spec-correct form and also avoid a separate, real bug
+// this code used to have: stripping '(' / ')' out of the URL entirely
+// (Markdown's [text](url) syntax requires escaping — not deleting — those
+// characters). If Telegram fixes the underlying renderer bug, this code
+// should already be correct with no further changes needed.
 function buildLinkMarkdown(text: string, href: string): string {
     return `<a href="${escapeHtmlAttribute(href)}">${text}</a>`;
 }
