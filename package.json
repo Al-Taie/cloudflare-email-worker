@@ -2,12 +2,18 @@
   "name": "forward-workspace-email-to-telegram",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "start": "wrangler dev"
+    "start": "wrangler dev",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260711.1",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
     "wrangler": "^4.110.0"
   },
   "dependencies": {

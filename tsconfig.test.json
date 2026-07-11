@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022"],
+        "module": "ES2022",
+        "moduleResolution": "Bundler",
+        "types": ["node"],
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true
+    },
+    "include": ["test/**/*.ts", "src/richMarkdown.ts", "src/codeExtraction.ts", "src/htmlContent.ts", "src/format.ts"]
+}
