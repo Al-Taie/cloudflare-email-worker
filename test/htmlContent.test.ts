@@ -153,22 +153,49 @@ test("preserves inline formatting inside a table cell instead of stripping it", 
     assert.match(result, /\[Link\]\(https:\/\/example\.com\) cell/);
 });
 
-// Media blocks (![](url)) are intentionally not generated: the email body
-// is rendered inside a "> "-quoted blockquote (see payload.ts), and
-// Telegram rejected that placement in production with
-// "RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND". Every image — standalone, linked, or
-// in a table cell — should fall back to plain alt text.
-test("never emits a media block for a standalone image, even a large one", () => {
-    const html = '<p>Check this out:</p><img src="https://example.com/banner.jpg" width="600" height="300" alt="Summer Sale">';
+test("promotes a substantial standalone raster image to a real media block", () => {
+    const html = '<p>Check this out:</p><img src="https://example.com/banner.png" width="600" height="300" alt="Summer Sale">';
+    const result = htmlToRichMarkdown(html);
+    assert.match(result, /!\[\]\(https:\/\/example\.com\/banner\.png "Summer Sale"\)/);
+});
+
+test("promotes a raster image even with a query string after the extension", () => {
+    const html = '<img src="https://example.com/photo.jpg?w=600" width="600" height="300" alt="Photo">';
+    const result = htmlToRichMarkdown(html);
+    assert.match(result, /!\[\]\(https:\/\/example\.com\/photo\.jpg\?w=600 "Photo"\)/);
+});
+
+// Regression test: Telegram's photo pipeline does not accept SVG. In
+// production, a placehold.co URL (Content-Type: image/svg+xml) sent as a
+// media block failed with RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND. Any URL that
+// doesn't visibly end in a known raster extension — including SVG and
+// extension-less/query-string-only URLs we can't verify — falls back to
+// alt text instead of risking the same failure.
+test("does not emit a media block for an SVG image", () => {
+    const html = '<img src="https://placehold.co/600x300?text=Summer+Sale" width="600" height="300" alt="Up to 40% Off Summer Sale">';
     const result = htmlToRichMarkdown(html);
     assert.doesNotMatch(result, /!\[\]/);
-    assert.match(result, /Summer Sale/);
+    assert.match(result, /Up to 40% Off Summer Sale/);
+});
+
+test("does not emit a media block for an extension-less/query-string-only image URL", () => {
+    const html = '<img src="https://example.com/image?id=123" width="600" height="300" alt="Mystery image">';
+    const result = htmlToRichMarkdown(html);
+    assert.doesNotMatch(result, /!\[\]/);
+    assert.match(result, /Mystery image/);
 });
 
 test("keeps an image inside a link as the link label", () => {
-    const html = '<a href="https://shop.example.com"><img src="https://example.com/banner.jpg" width="600" height="300" alt="Shop Now"></a>';
+    const html = '<a href="https://shop.example.com"><img src="https://example.com/banner.png" width="600" height="300" alt="Shop Now"></a>';
     const result = htmlToRichMarkdown(html);
     assert.equal(result, "[Shop Now](https://shop.example.com)");
+    assert.doesNotMatch(result, /!\[\]/);
+});
+
+test("keeps a small icon image as alt text instead of a media block", () => {
+    const html = '<img src="https://example.com/icon.png" width="24" height="24" alt="Discount Icon">';
+    const result = htmlToRichMarkdown(html);
+    assert.equal(result, "Discount Icon");
     assert.doesNotMatch(result, /!\[\]/);
 });
 
